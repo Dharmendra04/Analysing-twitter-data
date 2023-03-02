@@ -1,0 +1,563 @@
+---
+title: 'Sentimental Analysis on Latest version of ios (ios 16.1.1) and android (android
+  12) phones '
+author: "| \\textit{Group No}: 11\n|\n| \\textit{Group Members}: \n"
+date: '2022-11-28'
+output:
+  beamer_presentation: default
+  powerpoint_presentation: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+## AIM
+
+Our aim is to analyze and visualize Twitter  data and the sentiment of obtained data, which could be used by both Apple and Google for both marketing and technical changes to their current or future products.
+
+- The project is about comparing the latest versions of two contrasting operating systems, named __IOS16.1.1__ and __Android12__.
+- OS is created by Apple and Android is maintained by Google.
+
+
+
+## WORK FLOW
+
+- twitter hash tags used: __#android12__ , __#ios 16.1.1__
+- Total data count : 2000 twitters form each hash tag
+
+
+
+## Description of Data - Frequency of Twitter statuses
+
+
+```{r , basic_plot,eval = TRUE, echo = FALSE, warning = FALSE, message = FALSE, results='hide', fig.dim = c(15, 6)}
+require(rtweet)
+require(ggplot2)
+require(dplyr)
+require(ggthemes)
+require(readr)
+require(jsonlite)
+require(tidytext)
+require(tidyr)
+library(gridExtra) 
+library(widyr)
+library(ggplot2)
+library(igraph)
+library(ggraph)
+
+rt<-stream_in(file("android12.json"))
+
+ggp1<-ts_plot(rt, "5 mins") +
+  theme_minimal() + # white background 
+  theme(plot.title = element_text(face = "bold")) + # boldface title
+  labs(
+    x = NULL, y = NULL, # no labels on the axes
+    title = " #Android12",
+    subtitle = "Twitter status (tweet) counts aggregated using 5-minutes intervals",
+    caption = "Source: Data collected from Twitter's REST API via rtweet"
+  ) + 
+  theme(axis.text.x = element_text(size = 10), 
+          axis.text.y = element_text(size = 10), 
+          axis.title.x = element_text(size = 10),
+          axis.title.y = element_text(size = 10),
+          legend.text = element_text(size = 10),
+          title = element_text(size = 14))  
+
+rt2<-stream_in(file("ios16_1_1.json"))
+ggp2<-ts_plot(rt2, "5 mins") +
+  theme_minimal() + # white background 
+  theme(plot.title = element_text(face = "bold")) + # boldface title
+  labs(
+    x = NULL, y = NULL, # no labels on the axes
+    title = " #ios16_1_1 ",
+    subtitle = "Twitter status (tweet) counts aggregated using 5-minutes intervals",
+    caption = "Source: Data collected from Twitter's REST API via rtweet"
+  ) + 
+  theme(axis.text.x = element_text(size = 10), 
+          axis.text.y = element_text(size = 10), 
+          axis.title.x = element_text(size = 10),
+          axis.title.y = element_text(size = 10),
+          legend.text = element_text(size = 10),
+          title = element_text(size = 14))  
+grid.arrange(ggp1, ggp2, ncol=2, nrow =1)          # Apply grid.arrange function
+```
+
+## Wordcloud for Tweets
+
+```{r , eval = TRUE, echo = FALSE, warning = FALSE, message = FALSE, results='hide'}
+library(wordcloud)
+library(wordcloud2)
+library(maps)
+library(httpuv)
+library(reshape2)
+library(tidyverse)
+
+
+ios_tweets <- stream_in(file("ios16_1_1.json"))
+android_tweets <-stream_in(file("android12.json"))
+
+#stripped text - removing characters only,not punctuations
+
+ios_tweets$stripped_text <- gsub("http.*","",  ios_tweets$text)
+ios_tweets$stripped_text <- gsub("https.*","", ios_tweets$stripped_text)
+ios_tweets$stripped_text <- gsub("amp","", ios_tweets$stripped_text)
+
+android_tweets$stripped_text <- gsub("http.*","",  android_tweets$text)
+android_tweets$stripped_text <- gsub("https.*","", android_tweets$stripped_text)
+android_tweets$stripped_text <- gsub("amp","", android_tweets$stripped_text)
+head(android_tweets$stripped_text)
+
+# Let's remove punctuation, convert to lowercase, add id for each tweet:
+
+ios_tweets_clean <- ios_tweets%>%
+  select(stripped_text) %>% 
+  mutate(tweetnumber = row_number()) %>% # create new variable denoting the tweet number
+  unnest_tokens(word, stripped_text)
+
+android_tweets_clean <- android_tweets %>%
+  select(stripped_text) %>% 
+  mutate(tweetnumber = row_number()) %>% # create new variable denoting the tweet number
+  unnest_tokens(word, stripped_text)
+
+ios_tweets_clean<- ios_tweets_clean %>% mutate(topic = "ios16.1.1")
+android_tweets_clean<- android_tweets_clean %>% mutate(topic = "android12")
+
+both_tweets_clean <- rbind(ios_tweets_clean,android_tweets_clean)
+
+
+# load list of stop words - from the tidytext package
+data("stop_words")
+#
+# the lexicon is the source of the stop word.
+#
+
+# remove stop words from your list of words
+
+ios_cleaned_tweet_words_2 <- ios_tweets_clean %>%
+  anti_join(stop_words) # return all rows from ios16.1.1_tweets_clean where there are not matching values in stop_words
+#create our own stop words
+
+android_cleaned_tweet_words_2 <- android_tweets_clean %>%
+  anti_join(stop_words) # return all rows from android12_tweets_clean where there are not matching values in stop_words
+#create our own stop words
+
+my_stop_words <- data.frame(word = c("ios", "16.1.1", "iphone",'anroid','12','screen','apple','battery'))
+#
+#
+# remove our own stopwords from the list of words too
+android_cleaned_tweet_words_2<- android_cleaned_tweet_words_2 %>%
+  anti_join(my_stop_words) 
+
+# remove our own stopwords from the list of words too
+ios_cleaned_tweet_words_2<- ios_cleaned_tweet_words_2 %>%
+  anti_join(my_stop_words) 
+
+ios_cleaned_tweet_words_2<- ios_cleaned_tweet_words_2 %>% mutate(topic = "ios16.1.1")
+android_cleaned_tweet_words_2<- android_cleaned_tweet_words_2%>% mutate(topic = "android12")
+
+both_tweets_clean1 <- rbind(ios_cleaned_tweet_words_2,android_cleaned_tweet_words_2)
+
+
+# the count of each word / the total count
+
+ios_cleaned_tweet_words_3 <- ios_cleaned_tweet_words_2 %>%
+  count(word, sort = TRUE) %>% 
+  mutate(freq = n / sum(n))
+
+android_cleaned_tweet_words_3 <- android_cleaned_tweet_words_2 %>%
+  count(word, sort = TRUE) %>% 
+  mutate(freq = n / sum(n))
+
+ios_cleaned_tweet_words_3<- ios_cleaned_tweet_words_3 %>% mutate(topic = "ios16.1.1")
+android_cleaned_tweet_words_3<- android_cleaned_tweet_words_3%>% mutate(topic = "android12")
+
+both_tweets_clean2 <- rbind(ios_cleaned_tweet_words_3,android_cleaned_tweet_words_3)
+
+par(mfrow=c(1,2))
+
+with(ios_cleaned_tweet_words_3,
+     wordcloud(word,freq,
+               min.freq = 1,
+               max.words = 100,
+               random.order = FALSE, rot.per = 0.50,
+               colors = brewer.pal(8, "Dark2"), 
+               scale = c(3, 0.1)))
+
+title(main = "#ios16.1.1", 
+      cex.main = 1) # Controls the size of the title
+
+
+with(android_cleaned_tweet_words_3, 
+     wordcloud(word, freq, 
+               min.freq = 1, 
+               max.words = 100,
+               random.order = FALSE,rot.per = 0.35,
+               colors = brewer.pal(8, "Dark2"), 
+               scale = c(3, 0.1)))
+
+title(main = "#android12", 
+      cex.main = 1, sub="Sub-title") # Controls the size of the title
+
+
+```
+##Positive and negative wordcloud
+
+
+```{r , eval = TRUE, echo = FALSE, warning = FALSE, message = FALSE, results='hide'}
+
+par(mfrow=c(1,2)) #divide the windows(for the graph) to two 
+
+ios_cleaned_tweet_words_2%>% 
+  inner_join(get_sentiments("bing")) %>%
+  count(word, sentiment, sort = TRUE) %>%
+  acast(word ~ sentiment, value.var = "n", fill = 0) %>%
+  comparison.cloud(colors = c("gray20", "gray80"),  #creating positive and negative wordcloud
+                   max.words = 100)%>%
+  
+  title(main = "Wordcloud with sentiment for Tweets containing ios16.1.1", 
+        cex.main = 1)
+
+android_cleaned_tweet_words_2%>%
+  inner_join(get_sentiments("bing")) %>%
+  count(word, sentiment, sort = TRUE) %>%
+  acast(word ~ sentiment, value.var = "n", fill = 0) %>%
+  comparison.cloud(colors = c("gray20", "gray80"), #creating positive and negative wordcloud
+                   max.words = 100)
+
+title(main = "Wordcloud with sentiment for Tweets containing android12", 
+      cex.main = 1)
+```
+## Sentiment Scores Analysis
+
+```{r , eval = TRUE, echo = FALSE, warning = FALSE, message = FALSE, results='hide'}
+ios_sentiment <- ios_cleaned_tweet_words_2 %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(tweetnumber, sentiment) %>%
+  spread(sentiment, n, fill = 0) %>% # negative and positive sentiment in separate columns
+  mutate(score = positive - negative) # score = net sentiment (positive - negative)
+head(ios_sentiment)
+
+android_sentiment <- android_cleaned_tweet_words_2 %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(tweetnumber, sentiment) %>%
+  spread(sentiment, n, fill = 0) %>% # negative and positive sentiment in separate columns
+  mutate(score = positive - negative) # score = net sentiment (positive - negative)
+head(android_sentiment)
+
+# Add a variable to indicate the topic
+
+ios_sentiment<- ios_sentiment %>% mutate(topic = "ios16.1.1")
+android_sentiment<-android_sentiment %>% mutate(topic = "android12")
+
+both_sentiment <- rbind(ios_sentiment,android_sentiment)
+#
+# Let's work out the mean score 
+# We'll include it as a line and as a numerical value to our plot
+#
+sentiment_means_both <- both_sentiment %>% group_by(topic) %>% 
+  summarize(mean_score = mean(score)) 
+
+
+both_sentiment %>% filter(topic=="android12") %>% summarize(ave=mean(score))
+both_sentiment %>% filter(topic=="ios16.1.1") %>% summarize(ave=mean(score))
+#
+# Barplot
+#
+ggplot(both_sentiment, 
+       aes(x = score, # Sentiment score on x-axis
+           fill = topic)) + # Fill bars with a colour according to the topic
+  geom_bar() + # geom_bar will do the tabulation for you :-)
+  geom_vline(aes(xintercept = mean_score), 
+             data = sentiment_means_both) +
+  # Add a vertical line at the mean scores, calculated and stored in sentiment_mean_both above
+  geom_text(aes(x = mean_score, 
+                y = Inf, 
+                label = signif(mean_score, 3)), 
+            vjust = 2, 
+            data = sentiment_means_both) + 
+  # Add the mean as a number; vjust moves it down from the top of the plot
+  scale_x_continuous(breaks = -15:15, 
+                     minor_breaks = NULL) + # Show integers; set this to a suitably large range
+  scale_fill_manual(values = c("ios16.1.1" = "green", 
+                               "android12" = "blue")) + # Specify your own colours
+  labs(x = "Sentiment Score" , 
+       y = "Number of tweets", 
+       fill = "topic",title = "Counts on each sentimental scores of ios16.1.1 and android12") +
+  facet_grid(topic ~ .) + 
+  caption = "Source: Data collected from Twitter's REST API via rtweet"+
+  theme(axis.text.x = element_text(size = 10), 
+          axis.text.y = element_text(size = 10), 
+          axis.title.x = element_text(size = 10),
+          axis.title.y = element_text(size = 10),
+          legend.text = element_text(size = 10),
+          title = element_text(size = 14),legend.position = "bottom", title = element_text(size = 14))# Legend on the bottom
+   
+```
+
+```{r , eval = TRUE, echo = FALSE, warning = FALSE, message = FALSE, results='hide'}
+#Counting the sentiments of positive,negative and neutral emotions for overall sentiment
+positive <-  nrow(subset(ios_sentiment, score >0))
+negative = nrow(subset(ios_sentiment, score <0))
+neutral = nrow(subset(ios_sentiment, score ==0))
+
+#binding all the sentiments into a table
+tab_ios<-rbind(positive,negative,neutral)
+
+#Counting the sentiments of positive,negative and neutral emotions for overall sentiment
+positive <-  nrow(subset(android_sentiment, score >0))
+negative = nrow(subset(android_sentiment, score <0))
+neutral = nrow(subset(android_sentiment, score ==0))
+
+#binding all the sentiments into a table
+tab_android<-rbind(positive,negative,neutral)
+
+words = c('camera','battery','update') #The most used feature words obtained from wordcloud
+i<-0
+#Implementing a loop to create a table for positive, negative and neutral emotions for the above words
+while (i<4){
+  i=i+1 #looping through next iteration
+  ios_tweets_words<-dplyr::filter(ios_tweets, grepl(words[i], stripped_text)) #only filtering tweets with the specific words ios16.1.1
+  android_tweets_words<-dplyr::filter(android_tweets, grepl(words[i], stripped_text)) #only filtering tweets with specific words for android12
+  
+  #Dividing the words in a sentence using unnest token
+  ios_tweets_clean_words <- ios_tweets_words %>%
+    select(stripped_text) %>% 
+    mutate(tweetnumber = row_number()) %>% # create new variable denoting the tweet number
+    unnest_tokens(word, stripped_text)
+  head(ios_tweets_clean_words)
+
+  android_tweets_clean_words <- android_tweets_words %>%
+    select(stripped_text) %>% 
+    mutate(tweetnumber = row_number()) %>% # create new variable denoting the tweet number
+    unnest_tokens(word, stripped_text)
+  head(android_tweets_clean_words)
+  
+  #remove stop words
+  ios_clean_words <- ios_tweets_clean_words %>%
+    anti_join(stop_words) # return all rows from ios16.1.1_tweets_clean where there are not matching values in stop_words
+  
+  android_clean_words <- android_tweets_clean_words %>%
+    anti_join(stop_words) # return all rows from android12_tweets_clean where there are not matching values in stop_words
+  
+  
+  ### Calculate sentiment scores for each tweet
+  # associate sentiment scores to each tweet
+  ios_sentiment_words <- ios_tweets_clean_words %>%
+    inner_join(get_sentiments("bing")) %>%
+    count(tweetnumber, sentiment) %>%
+    spread(sentiment, n, fill = 0) %>% # negative and positive sentiment in separate columns
+    mutate(score = positive - negative) # score = net sentiment (positive - negative)
+  head(ios_sentiment_words)
+  
+  android_sentiment_words <- android_tweets_clean_words %>%
+    inner_join(get_sentiments("bing")) %>%
+    count(tweetnumber, sentiment) %>%
+    spread(sentiment, n, fill = 0) %>% #negative and positive sentiment in separate columns
+    mutate(score = positive - negative) # score = net sentiment (positive - negative)
+  head(android_sentiment_words)
+  
+#sentiments for positive, negative and neutral for (camera,battery,update)are added to a table
+  tab_ios <-cbind(tab_ios,rbind(nrow(subset(ios_sentiment_words, score >0)),
+        nrow(subset(ios_sentiment_words, score <0)),
+        nrow(subset(ios_sentiment_words, score ==0))))
+
+  tab_android<-cbind(tab_android,rbind(nrow(subset(android_sentiment_words, score >0)),
+                      nrow(subset(android_sentiment_words, score <0)),
+                      nrow(subset(android_sentiment_words, score ==0))))
+  
+}
+
+#stacked graph
+#ios16.1.1
+par(mfrow=c(1,2)) #dividing the window to two
+barplot(as.matrix(tab_ios[,1:4]),col = c("gold3","red","blue"),
+        names.arg = c('overall','screen','battery','update'),
+        args.legend = list(x = "top"),
+        legend.text = c('positive','Negative','Neutral'),
+        main = "sentiment for Tweets containing android12")#creating a bar plot for ios16.1.1
+
+#android12
+barplot(as.matrix(tab_android[,1:4]),col=c("gold3","red","blue"),
+        names.arg = c('overall','screen','battery','update'),
+        args.legend = list(x = "top"),
+        legend.text = c('positive','Negative','Neutral'),
+        main = "sentiment for Tweets containing android12")#creating a bar plot for android12
+
+
+```
+
+##  Analysis
+```{r , eval = TRUE, echo = FALSE, warning = FALSE, message = FALSE, results='hide'}
+#load tweets for both operating systems
+ios16 <- stream_in(file("ios16_1_1.json"))
+
+android12 <- stream_in(file("android12.json"))
+
+#clean text of tweets
+android12$stripped_text <- gsub("http.*", "", android12$text)
+android12$stripped_text <- gsub("https.*", "", android12$stripped_text)
+android12$stripped_text <- gsub("amp", "", android12$stripped_text)
+
+ios16$stripped_text <- gsub("http.*", "", ios16$text)
+ios16$stripped_text <- gsub("https.*", "", ios16$stripped_text)
+ios16$stripped_text <- gsub("amp", "", ios16$stripped_text)
+
+
+#break down tweets into words
+ios16_clean <- ios16 %>% select(stripped_text) %>% mutate(tweetnumber = row_number()) %>% unnest_tokens(word, stripped_text)
+
+android12_clean <- android12 %>% select(stripped_text) %>% mutate(tweetnumber = row_number()) %>% unnest_tokens(word, stripped_text)
+
+#add tweet numbers to original data
+android12 <- android12 %>% mutate(tweetnumber = row_number())
+
+ios16 <- ios16 %>% mutate(tweetnumber = row_number())
+
+#load stop words
+data("stop_words")
+
+#measure sentiment of words in tweets
+sentiment_android12_tweets <- android12_clean %>% inner_join(get_sentiments("bing")) %>% count(tweetnumber, sentiment) %>% spread(sentiment, n, fill = 0) %>% mutate(score = positive - negative)
+
+sentiment_ios16_tweets <- ios16_clean %>% inner_join(get_sentiments("bing")) %>% count(tweetnumber, sentiment) %>% spread(sentiment, n, fill = 0) %>% mutate(score = positive - negative)
+
+#add sentiment scores to original tweets
+android12_sentiment_tweets <- android12
+
+ios16_sentiment_tweets <- ios16
+
+android12_sentiment_tweets$sentiment_score <- sentiment_android12_tweets$score[match(android12_sentiment_tweets$tweetnumber, sentiment_android12_tweets$tweetnumber)]
+
+ios16_sentiment_tweets$sentiment_score <- sentiment_ios16_tweets$score[match(ios16_sentiment_tweets$tweetnumber, sentiment_ios16_tweets$tweetnumber)]
+
+#add category factor to tweets
+android12_sentiment_tweets <- android12_sentiment_tweets %>% mutate(category = factor(ifelse(grepl("price", android12_sentiment_tweets$stripped_text, fixed = TRUE) != FALSE, "price", 
+                                                     ifelse(grepl("cost", android12_sentiment_tweets$stripped_text, fixed = TRUE) != FALSE, "price",
+                                                            ifelse(grepl("safety", android12_sentiment_tweets$stripped_text, fixed = TRUE) != FALSE, "safety",
+                                                                   ifelse(grepl("safe", android12_sentiment_tweets$stripped_text, fixed = TRUE) != FALSE, "safety",
+                                                                          ifelse(grepl("service", android12_sentiment_tweets$stripped_text, fixed = TRUE) != FALSE, "service",
+                                                                                ifelse(grepl("support", android12_sentiment_tweets$stripped_text, fixed = TRUE) != FALSE, "service", "other"))))))))
+
+ios16_sentiment_tweets <- ios16_sentiment_tweets %>% mutate(category = factor(ifelse(grepl("price", ios16_sentiment_tweets$stripped_text, fixed = TRUE) != FALSE, "price", 
+                                                                                             ifelse(grepl("cost", ios16_sentiment_tweets$stripped_text, fixed = TRUE) != FALSE, "price",
+                                                                                                    ifelse(grepl("safety", ios16_sentiment_tweets$stripped_text, fixed = TRUE) != FALSE, "safety",
+                                                                                                           ifelse(grepl("safe", ios16_sentiment_tweets$stripped_text, fixed = TRUE) != FALSE, "safety",
+                                                                                                                  ifelse(grepl("service", ios16_sentiment_tweets$stripped_text, fixed = TRUE) != FALSE, "service",
+                                                                                                                         ifelse(grepl("support", ios16_sentiment_tweets$stripped_text, fixed = TRUE) != FALSE, "service", "other"))))))))
+
+#create factors for topics and overall sentiment
+topics <- factor(c("price", "safety", "service", "other"))
+
+sentiment_categories = factor(c("positive", "negative", "neutral"))
+
+#add overall sentiment factor to tweets
+android12_sentiment_tweets <- android12_sentiment_tweets %>% mutate(sentiment = factor(ifelse(sentiment_score < 0, "negative", ifelse(sentiment_score > 0, "positive", "neutral"))))
+
+ios16_sentiment_tweets <- ios16_sentiment_tweets %>% mutate(sentiment = factor(ifelse(sentiment_score < 0, "negative", ifelse(sentiment_score > 0, "positive", "neutral"))))
+
+par(mfrow=c(1,2))#divide the graph window into two
+#Android plot
+android12_sentiment_tweets %>%
+  drop_na(sentiment) %>%
+  subset(category != "other") %>%
+ggplot(aes(x = category, y = sum(category == topics), fill = sentiment)) +
+  geom_bar(stat = "identity", position = "stack", ) +
+  theme_minimal() +
+  
+  labs(x = "Tweet Topic Category", y = "Number of tweets", title = "Stacked Bar Chart showing the number of tweets and sentiment in 3 categories (Android 12)", caption = "Source: Twitter's REST API via RTweet")
+
+#ios plot
+ios16_sentiment_tweets %>%
+  drop_na(sentiment) %>%
+  subset(category != "other") %>%
+  ggplot(aes(x = category, y = sum(category == topics), fill = sentiment)) +
+  geom_bar(stat = "identity", position = "stack", ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(size = 10), 
+          axis.text.y = element_text(size = 10), 
+          axis.title.x = element_text(size = 10),
+          axis.title.y = element_text(size = 10),
+          legend.text = element_text(size = 10)) +
+  labs(x = "Tweet Topic Category", y = "Number of tweets", title = "Stacked Bar Chart showing the number of tweets and sentiment in 3 categories (IOS 16.1.1)", caption = "Source: Twitter's REST API via RTweet")
+```
+
+##Bigram
+```{r , eval = TRUE, echo = FALSE, warning = FALSE, message = FALSE, results='hide'}
+
+ios_bigram<- ios_cleaned_tweet_words_2 %>%
+  pairwise_count(word,tweetnumber, sort = TRUE, upper = FALSE) #
+  
+  par(mfrow=c(1,2))
+
+  set.seed(1234)
+ios_bigram %>%
+  dplyr::filter(n >= 20) %>%#filtering the pair counts used more than 20
+  graph_from_data_frame() %>%
+  ggraph(layout = 'kk') +
+  geom_edge_link(aes(edge_alpha = n, edge_width = n), edge_colour = "cyan4") + #formatting nodes
+  geom_node_point(size = 5) +
+geom_node_text(aes(label = name), repel = TRUE,
+               point.padding = unit(0.2, "lines")) + #setting the sizes of nodes
+  labs(subtitle = 'Bigram for ios16.1.1',plot.subtitle=element_text(size = 14))+
+  theme_void()
+
+ android_bigram %>%
+    dplyr::filter(n >= 200) %>%
+    graph_from_data_frame() %>%
+    ggraph(layout = 'kk') +
+    geom_edge_link(aes(edge_alpha = n, edge_width = n), edge_colour = "cyan4") +
+    geom_node_point(size = 5) +
+    geom_node_text(aes(label = name), repel = TRUE,
+                   point.padding = unit(0.2, "lines")) + #setting the sizes of nodes
+    labs(subtitle = 'Bigram for android12',plot.subtitle =element_text(size = 14))
+  theme_void()
+
+```
+## T test
+
+```{r , eval = TRUE, echo = FALSE, warning = FALSE, message = TRUE, results='hold',fig.dim = c(15, 6)}
+#T-Test for sentimental score of ios16.1.1 and android12
+ggplot(both_sentiment, aes(x = topic , y = score, fill = topic)) + 
+  geom_boxplot(varwidth = TRUE) +
+  labs(x = "Android12 vs ios16.1.1", y = "Sentiment of each tweet",caption = "Source: Twitter's REST API via RTweet") 
+  theme(axis.text.x = element_text(size = 10), 
+          axis.text.y = element_text(size = 10), 
+          axis.title.x = element_text(size = 10),
+          axis.title.y = element_text(size = 10),
+          legend.text = element_text(size = 10))
+
+t.test(score ~ topic, data = both_sentiment , var.equal = TRUE)
+#
+
+
+```
+
+## Discussion 
+- The overall sentiments are changing over time to time
+-This twitter data set has shown a __reasonable difference__ in the positive sentiment of android12 and ios16.1.1
+
+- From the observation from wordclouds the following words can be given importance in future researches.
+ios16.1.1 - jailbreak,cydia
+android12 - camera, kids offer
+-The following words should be taken into consideration by the employers
+| Brand   |  Positive    |  Negative  |
+|:-------:|:------------:|:-----------|
+|ios16.1.1|accurate      |stuck       |
+|android12|fast         |scratches    |
+
+- when considering the screen, update, and battery android12 has received positive feedback and conversely ios16.1.1 received negative feedback.
+
+- Future research must use twitter data covering a long period inorder to obtain a decision for the two brands.
+
+
+## Conclusion
+- The overall __positive__ emotion of the __android12__ has __exceeded__ the __ios16.1.1__
+- The __short term__ twitter data __cannot__ be used to give a final decision on which brand has got the positive emotion as the __emotions can change over time to time__
+
+## References 
+
+
+
+
